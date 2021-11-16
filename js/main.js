@@ -1,17 +1,83 @@
-function getRandomIntInclusive(min, max) {
-  if (min >= 0 && max >= min) {
-    min = Math.ceil(min);
-    max = Math.round(max);
-    return Math.round(Math.random() * (max - min) + min);
-  }
-  throw new Error('Ошибка. Обнаружено не соответствие условию.');
-}
-getRandomIntInclusive(1, 3);
+import './card.js';
+import './filters.js';
+import './form.js';
+import './map.js';
+import './popup.js';
+import './photo.js';
 
-function getRandomFloat(min, max, numb) {
-  if (min >= 0 && max >= min) {
-    return (Math.random() * (max - min + 1) + min).toFixed(numb);
-  }
-  throw new Error('Ошибка. Обнаружено не соответствие условию.');
-}
-getRandomFloat(1, 3, 2);
+import {form, disableAdForm, enableAdForm, resetAdForm, resetButton, setAddressInput} from './form.js';
+import {getData, sendData} from './api.js';
+import {renderAdMarkers, removeAdMarkers, initMap, resetMap} from './map.js';
+import {showAlert, debounce} from './utils.js';
+import {disableFilters, enableFilters, getFilteredAds, filterForm} from './filters.js';
+import {DefaultCoords, PopupType} from './constants.js';
+import {showPopup} from './popup.js';
+
+let adsData;
+
+const showMessageError = (error) => {
+  showAlert(`Не удалось загрузить объявления ${error}`);
+};
+
+const onFilterChange = debounce((ads) => {
+  const newAds = getFilteredAds(ads);
+  removeAdMarkers();
+  renderAdMarkers(newAds);
+});
+
+const resetApp = () => {
+  resetMap();
+  removeAdMarkers();
+  resetAdForm();
+  filterForm.reset();
+  renderAdMarkers(adsData);
+};
+
+const deactivateApp = () => {
+  disableAdForm();
+  disableFilters();
+};
+
+const activateApp = () => {
+  enableAdForm();
+  enableFilters();
+  getData()
+    .then((ads) => {
+      adsData = ads;
+      renderAdMarkers(ads);
+      filterForm.addEventListener('change', () => {
+        onFilterChange(ads);
+      });
+    })
+    .catch(showMessageError);
+};
+
+const setFormSubmit = (send) => {
+  form.addEventListener('submit', (evt) => {
+    evt.preventDefault();
+    send(evt.target)
+      .then(() => showPopup(PopupType.SUCCESS))
+      .then(resetApp)
+      .catch(() => showPopup(PopupType.ERROR));
+  });
+};
+
+const initApp = () => {
+  deactivateApp();
+  initMap({
+    onMapLoad: activateApp,
+    onMainPinDrag: setAddressInput,
+  });
+  setAddressInput({lat: DefaultCoords.LAT, lng: DefaultCoords.LNG});
+  setFormSubmit(sendData);
+
+  resetButton.addEventListener('click', (evt) => {
+    evt.preventDefault();
+    resetApp();
+  });
+};
+
+
+initApp();
+
+
